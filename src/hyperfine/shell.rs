@@ -66,9 +66,13 @@ fn run_shell_command(
     command: &str,
     shell: &str,
 ) -> io::Result<std::process::ExitStatus> {
-    Command::new(shell)
-        .arg("-c")
-        .arg(command)
+    let (executable, arguments) = if let Some(command) = prepare_shell_command(command, shell, "-c")? {
+        command
+    } else {
+        return Ok (std::os::unix::process::ExitStatusExt::from_raw(0));
+    };
+    Command::new(executable)
+        .args(arguments)
         .env(
             "HYPERFINE_RANDOMIZED_ENVIRONMENT_OFFSET",
             "X".repeat(rand::random::<usize>() % 4096usize),
@@ -87,11 +91,39 @@ fn run_shell_command(
     command: &str,
     shell: &str,
 ) -> io::Result<std::process::Child> {
-    Command::new(shell)
-        .arg("/C")
-        .arg(command)
+    let (executable, arguments) = if let Some(command) = prepare_shell_command(command, shell, "/C")? {
+        command
+    } else {
+        return Ok (std::os::windows::process::ExitStatusExt::from_raw(0));
+    };
+    Command::new(executable)
+        .args(arguments)
         .stdin(Stdio::null())
         .stdout(stdout)
         .stderr(stderr)
         .spawn()
 }
+
+fn prepare_shell_command(
+    command: &str,
+    shell: &str,
+    shell_arg: &str,
+) -> io::Result<Option<(String, Vec<String>)>> {
+    if shell == "" {
+        let mut tokens = command.split_whitespace();
+        if let Some(token) = tokens.next() {
+            Ok(Some((
+                    String::from(token),
+                    tokens.map(String::from).collect(),
+                )))
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(Some((
+                String::from(shell),
+                vec![String::from(shell_arg), String::from(command)],
+            )))
+    }
+}
+
