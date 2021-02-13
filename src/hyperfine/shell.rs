@@ -110,7 +110,10 @@ fn prepare_shell_command(
     shell_arg: &str,
 ) -> io::Result<Option<(String, Vec<String>)>> {
     if shell == "" {
-        let mut tokens = command.split_whitespace();
+        let mut tokens = match shell_words::split(command) {
+            Ok(tokens) => tokens.into_iter(),
+            Err(error) => return Err(io::Error::new(io::ErrorKind::Other, format!("{}", error))),
+        };
         if let Some(token) = tokens.next() {
             Ok(Some((
                     String::from(token),
